@@ -113,6 +113,32 @@ colnames(df_lp) <-
   c("horizon", "mid", "se", "up1", "down1", "up2", "down2")
 ```
 
+plot LP and confidence bands
+```{r}
+df_lp %>% 
+  ggplot(aes(x = horizon)) +
+  geom_line(aes(y = mid), color = 'darkgreen', size = 1.5) +
+  geom_ribbon(aes(ymin = down1, ymax = up1),
+              fill = "darkgreen", linetype = 0, alpha = 0.2) +
+  geom_ribbon(aes(ymin = down2, ymax = up2),
+              fill = "darkgreen", linetype = 0, alpha = 0.1) +
+  scale_x_continuous(expand = c(0,0), breaks = seq(0, h, 5)) +
+  scale_y_continuous(expand = c(0,0), limits = c(-6, 2)) +
+  labs(
+    x = "Quearter",
+    y = "Percent",
+    title = "Cumulative response of the CPI in percent to a Romer monetary shock",
+  ) +
+  geom_hline(aes(yintercept = 0)) +
+  theme_light(12, base_family = "Palatino Linotype") +
+  theme(
+    panel.grid.major = element_blank(),
+    panel.grid.minor = element_blank()
+  )
+```
+
+
+
 ## Estimate significance bands
 
 FWL Step: Orthogonalize the response and instrument with respect to exogenous variables.
