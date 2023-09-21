@@ -1,5 +1,5 @@
 ---
-title: "Local Projections Significance Bands"
+title: "Significance Bands for Local Projetsions in R"
 author: "Itamar Caspi"
 date: "`r Sys.Date()`"
 output:
