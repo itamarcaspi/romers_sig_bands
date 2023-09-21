@@ -1,0 +1,197 @@
+---
+title: "Local Projections Significance Bands"
+author: "Itamar Caspi"
+date: "`r Sys.Date()`"
+output:
+  html_document:
+    code_folding: show
+    highlight: haddock
+    keep_md: no
+    theme: journal
+    toc: yes
+    toc_depth: 4
+    toc_float: yes
+abstract: This note aims to replicate the main finding presented in the paper "Significance Bands for Local Projections" by [Inoue, Jordà, and Kuersteiner (2023)](https://arxiv.org/abs/2306.03073). The original paper outlines the importance of using significance bands instead of traditional confidence bands for evaluating the dynamic impact of a treatment on an outcome variable via local projections. In particular, the note employs the R programming language to implement these methods, providing a detailed, step-by-step guide for researchers interested in applying them in their own analyses.
+---
+
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(
+  eval    = TRUE,
+  echo    = TRUE,
+  warning = FALSE,
+  message = FALSE
+)
+```
+
+## Introduction
+
+[Inoue, Jordà, and Kuersteiner (2023)](https://arxiv.org/abs/2306.03073) propose employing significance bands with confidence bands to enhance impulse response function visualization. This approach allows for a more nuanced interpretation of statistical estimates. Confidence bands provide information on the uncertainty of each impulse response coefficient. In contrast, significance bands are better suited for visually assessing the null hypothesis, which posits that the entire impulse response is zero.
+
+Standard statistical software and the Lagrange multiplier principle make constructing significance bands straightforward under the null hypothesis. This ease of construction is a noteworthy advantage. The bands' calculations do not depend on the impulse response horizon, and the paper provides approximate formulas. The authors also discuss bootstrap methods as a less assumption-reliant approach.
+
+Monte Carlo simulations show that the proposed significance bands outperform traditional confidence bands. The simulations reveal that these bands have favorable size and power properties compared to solely considering whether confidence bands include zero. Thus, the authors argue that significance bands should be a standard graphical representation for impulse response functions.
+
+In this paper, I replicate key findings from Inoue, Jordà, and Kuersteiner's study. Specifically, I focus on estimating local projections (LPs) for the Romer and Romer monetary policy shock. I then test these estimates using the significance bands method.
+
+## Load packages
+Start by loading the necessary packages
+```{r}
+library(tidyverse) # for data processing and plotting
+library(broom)     # for tidying regression output
+library(haven)     # for reading Stata .dta files
+library(dynlm)     # for running dynamic regressions with leads and lags
+library(sandwich)  # for Newey-West standard errors
+library(lmtest)    # for significance tests
+```
+
+## Set parameters
+```{r}
+h     <- 17    # IRF horizon
+p     <- 0.05  # p-value
+lags  <- 6     # lags to be used in LP regressions
+nwlag <- h     # lags to be used in Newey-West
+block <- h     # bootstrap block size
+```
+
+## Set sample
+```{r}
+smpl_start <- ymd("1985-01-01")
+smpl_end   <- ymd("2007-12-31")
+```
+
+## Load and process the data
+```{r}
+df_raw <- read_dta("data/aggregatedata_final.dta")
+```
+
+
+```{r}
+df <- df_raw %>%
+  mutate(
+    # scale variables to work in percent
+    date = observation_date,
+    dlrgdp = 100 * dlrgdp,
+    dlcpi  = 100* dlcpi,
+    lcpi   = 100 * lcpi,
+    lrgdp  = 100* lrgdp
+  ) %>% 
+  filter(between(date, smpl_start, smpl_end)) %>% 
+  select(date, lcpi, rr_shock, dlcpi, dlrgdp, dstir) %>% 
+  rename(
+    y = lcpi,      # response 
+    z = rr_shock   # instrument
+  ) %>% 
+  ts()
+```
+
+## LP regression and usual confidence bands
+```{r}
+mat_lp <- matrix(data = NA, ncol = 7, nrow = h+1)  # matrix to store estimation results
+
+for (i in 0:h) {
+  lm_fit     <- dynlm(L(y, -i) - L(y, 1) ~ z + L(dlrgdp, 1:lags) + L(dlcpi, 1:lags) + L(dstir, 1:lags), data = df)
+  
+  lm_coef    <- coeftest(lm_fit, vcov. = NeweyWest(lm_fit, lag = i, prewhite = FALSE))
+  lm_summary <- tidy(lm_coef)
+  estimate   <- lm_summary %>% slice(2) %>% select(estimate) 
+  se         <- lm_summary %>% slice(2) %>% select(std.error) 
+  
+  mat_lp[i+1, 1] <- i
+  mat_lp[i+1, 2] <- estimate[[1]]
+  mat_lp[i+1, 3] <- se[[1]]
+  mat_lp[i+1, 4] <- estimate[[1]] + 1 * se[[1]]
+  mat_lp[i+1, 5] <- estimate[[1]] - 1 * se[[1]]
+  mat_lp[i+1, 6] <- estimate[[1]] + 2 * se[[1]]
+  mat_lp[i+1, 7] <- estimate[[1]] - 2 * se[[1]]
+}
+
+df_lp <- mat_lp %>% 
+  as_tibble()
+
+colnames(df_lp) <- 
+  c("horizon", "mid", "se", "up1", "down1", "up2", "down2")
+```
+
+## Estimate significance bands
+
+FWL Step: Orthogonalize the response and instrument with respect to exogenous variables.
+```{r}
+model_y <- dynlm(y - L(y, 1) ~ L(dlrgdp, 1:lags) + L(dlcpi, 1:lags) + L(dstir, 1:lags), data = df)
+model_z <- dynlm(z ~ L(dlrgdp, 1:lags) + L(dlcpi, 1:lags) + L(dstir, 1:lags), data = df)
+
+r_y <- model_y$residuals
+r_z <- model_z$residuals
+```
+
+Do Significance bands using NW
+```{r}
+w         <- r_z^2
+mw        <- mean(w)
+eta       <- r_y*r_z
+model_eta <- lm(eta ~ 1)
+nw_se_eta <- sqrt(diag(vcovHAC(model_eta, lag = nwlag)))
+seta      <- nw_se_eta["(Intercept)"]
+sbeta     <- seta/mw
+
+bju <- qnorm(1 - (p / (2 * (h + 1)))) * sbeta
+bjd <- -bju
+```
+
+Do a bootstrap version
+```{r}
+set.seed(12345)   # for replication
+
+n         <- length(r_y)
+block_id  <- floor((1:n + block - 1) / block)
+model_eta <- lm(eta ~ 1)
+nw_se_eta <- sqrt(diag(vcovBS(model_eta, cluster = block_id, R = 1000)))
+seta      <- nw_se_eta["(Intercept)"]
+sbeta     <- seta/mw
+
+bootju <- qnorm(1 - (p / (2 * (h + 1)))) * sbeta
+bootjd <- -bootju
+```
+
+Join significance bands estiation results
+```{r}
+df_sb <- tibble(
+  bju    = rep(bju, h+1),
+  bjd    = rep(bjd, h+1),
+  bootju = rep(bootju, h+1),
+  bootjd = rep(bootjd, h+1)
+)
+```
+
+## Plot LPs, confidence bands and significance bands
+
+This graph illustrates the impulse response of 100 times the logarithm of the Consumer Price Index (CPI) following a Romer and Romer (2004) monetary olicy shock (extended by Wieland and Yang, 2020.) The model includes four lagged variables for CPI inflation, GDP growth, and a one-year Treasury Bill rate. The data sample covers the period from the first quarter of 1985 to the fourth quarter of 2007. Confidence bands at the 95% significance level are displayed; classical NW bands are shown in dashed blue and bootstrap bands in dashed red. Dark and light shaded areas indicate bands corresponding to one and two standard errors, respectively. For further details, refer to [Inoue, Jordà, and Kuersteiner (2023.)](https://arxiv.org/abs/2306.03073)
+```{r}
+df_lp %>% 
+  bind_cols(df_sb) %>% 
+  ggplot(aes(x = horizon)) +
+  geom_line(aes(y = mid), color = 'darkgreen', size = 1.5) +
+  geom_line(aes(y = bju), color = "red", linetype = 2, size = 1) +
+  geom_line(aes(y = bjd), color = "red", linetype = 2, size = 1) +
+  geom_line(aes(y = bootju), color = "blue", linetype = 2, size = 1) +
+  geom_line(aes(y = bootjd), color = "blue", linetype = 2, size = 1) +
+  geom_ribbon(aes(ymin = down1, ymax = up1),
+              fill = "darkgreen", linetype = 0, alpha = 0.2) +
+  geom_ribbon(aes(ymin = down2, ymax = up2),
+              fill = "darkgreen", linetype = 0, alpha = 0.1) +
+  scale_x_continuous(expand = c(0,0), breaks = seq(0, h, 5)) +
+  scale_y_continuous(expand = c(0,0), limits = c(-6, 2)) +
+  labs(
+    x = "Quearter",
+    y = "Percent",
+    title = "Cumulative response of the CPI in percent to a Romer monetary shock",
+  ) +
+  geom_hline(aes(yintercept = 0)) +
+  theme_light(12, base_family = "Palatino Linotype") +
+  theme(
+    panel.grid.major = element_blank(),
+    panel.grid.minor = element_blank()
+  )
+```
+
+
