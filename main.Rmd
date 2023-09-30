@@ -302,7 +302,9 @@ df_lp %>%
 
 ## Stacked LPs
 
-Transform the data to long format
+In this section, we employ a technique proposed by Jordà, where we estimate the $h$ local projection regression simultaneously as a panel anduse Driscoll-Kraay HAC robust standard errors for inference. The advantage of this estimation method is that it provides us with the coefficients' variance-covariance matrix, thereby enabling us to test the hypothesis that $\beta_h=0$ for all $h$.
+
+We start by transforming the data to long format
 ```{r}
 df_r_yz_long <- df_r_yz %>%
   pivot_longer(-c(date, r_z), names_to = "horizon", values_to = "r_fy") %>%
@@ -312,14 +314,14 @@ df_r_yz_long <- df_r_yz %>%
   select(date, horizon, r_fy, r_z)
 ```
 
-Estimate the stacked data as a panel
+Next, we estimate the stacked data as a panel using the `plm` package:
 ```{r}
 library(plm)  # to estimate panel data models
 
 plm_model <- plm(r_fy ~ factor(horizon):r_z, data = df_r_yz_long, index = c("horizon", "date"), model = "within")
 ```
 
-Perform a joint hypothesis test
+Finally, we perform the joint hypothesis test:
 ```{r}
 hypothesis <- sapply(0:H, function(i) paste0("factor(horizon)", i, ":r_z = 0"))
 

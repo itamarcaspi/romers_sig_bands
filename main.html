@@ -1962,18 +1962,25 @@ errors, respectively. For further details, refer to <a href="https://arxiv.org/a
 </div>
 <div id="stacked-lps" class="section level2">
 <h2>Stacked LPs</h2>
-<p>Transform the data to long format</p>
+<p>In this section, we employ a technique proposed by Jordà, where we
+estimate the <span class="math inline">\(h\)</span> local projection
+regression simultaneously as a panel anduse Driscoll-Kraay HAC robust
+standard errors for inference. The advantage of this estimation method
+is that it provides us with the coefficients’ variance-covariance
+matrix, thereby enabling us to test the hypothesis that <span class="math inline">\(\beta_h=0\)</span> for all <span class="math inline">\(h\)</span>.</p>
+<p>We start by transforming the data to long format</p>
 <div class="sourceCode" id="cb16"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb16-1"><a href="#cb16-1" tabindex="-1"></a>df_r_yz_long <span class="ot">&lt;-</span> df_r_yz <span class="sc">%&gt;%</span></span>
 <span id="cb16-2"><a href="#cb16-2" tabindex="-1"></a>  <span class="fu">pivot_longer</span>(<span class="sc">-</span><span class="fu">c</span>(date, r_z), <span class="at">names_to =</span> <span class="st">&quot;horizon&quot;</span>, <span class="at">values_to =</span> <span class="st">&quot;r_fy&quot;</span>) <span class="sc">%&gt;%</span></span>
 <span id="cb16-3"><a href="#cb16-3" tabindex="-1"></a>  <span class="fu">mutate</span>(</span>
 <span id="cb16-4"><a href="#cb16-4" tabindex="-1"></a>    <span class="at">horizon =</span> <span class="fu">as.factor</span>(<span class="fu">gsub</span>(<span class="st">&quot;^r_fy&quot;</span>, <span class="st">&quot;&quot;</span>, horizon))</span>
 <span id="cb16-5"><a href="#cb16-5" tabindex="-1"></a>  ) <span class="sc">%&gt;%</span> </span>
 <span id="cb16-6"><a href="#cb16-6" tabindex="-1"></a>  <span class="fu">select</span>(date, horizon, r_fy, r_z)</span></code></pre></div>
-<p>Estimate the stacked data as a panel</p>
+<p>Next, we estimate the stacked data as a panel using the
+<code>plm</code> package:</p>
 <div class="sourceCode" id="cb17"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb17-1"><a href="#cb17-1" tabindex="-1"></a><span class="fu">library</span>(plm)  <span class="co"># to estimate panel data models</span></span>
 <span id="cb17-2"><a href="#cb17-2" tabindex="-1"></a></span>
 <span id="cb17-3"><a href="#cb17-3" tabindex="-1"></a>plm_model <span class="ot">&lt;-</span> <span class="fu">plm</span>(r_fy <span class="sc">~</span> <span class="fu">factor</span>(horizon)<span class="sc">:</span>r_z, <span class="at">data =</span> df_r_yz_long, <span class="at">index =</span> <span class="fu">c</span>(<span class="st">&quot;horizon&quot;</span>, <span class="st">&quot;date&quot;</span>), <span class="at">model =</span> <span class="st">&quot;within&quot;</span>)</span></code></pre></div>
-<p>Perform a joint hypothesis test</p>
+<p>Finally, we perform the joint hypothesis test:</p>
 <div class="sourceCode" id="cb18"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb18-1"><a href="#cb18-1" tabindex="-1"></a>hypothesis <span class="ot">&lt;-</span> <span class="fu">sapply</span>(<span class="dv">0</span><span class="sc">:</span>H, <span class="cf">function</span>(i) <span class="fu">paste0</span>(<span class="st">&quot;factor(horizon)&quot;</span>, i, <span class="st">&quot;:r_z = 0&quot;</span>))</span>
 <span id="cb18-2"><a href="#cb18-2" tabindex="-1"></a></span>
 <span id="cb18-3"><a href="#cb18-3" tabindex="-1"></a><span class="fu">linearHypothesis</span>(plm_model, hypothesis, <span class="at">vcov. =</span> <span class="cf">function</span>(x) <span class="fu">vcovSCC</span>(x, <span class="at">maxlag=</span>nwlag))</span></code></pre></div>
