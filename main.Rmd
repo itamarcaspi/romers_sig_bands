@@ -11,9 +11,8 @@ output:
     toc: yes
     toc_depth: 4
     toc_float: yes
-abstract: This note aims to replicate the main finding presented in the paper "Significance Bands for Local Projections" by [Inoue, Jordà, and Kuersteiner (2023)](https://arxiv.org/abs/2306.03073). The original paper outlines the importance of using significance bands instead of traditional confidence bands for evaluating the dynamic impact of a treatment on an outcome variable via local projections. In particular, the note employs the R programming language to implement these methods, providing a detailed, step-by-step guide for researchers interested in applying them in their own analyses.
+abstract: This notebook replicates the main finding presented in the paper "Significance Bands for Local Projections" by [Inoue, Jordà, and Kuersteiner (2023)](https://arxiv.org/abs/2306.03073). The original paper outlines the importance of using significance bands instead of traditional confidence bands for evaluating the dynamic impact of a treatment on an outcome variable via local projections. In particular, the note employs the R programming language to implement these methods, providing a detailed, step-by-step guide for researchers interested in applying them in their own analyses.
 ---
-
 
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(
@@ -35,11 +34,13 @@ Monte Carlo simulations show that the proposed significance bands outperform tra
 In this paper, I replicate key findings from Inoue, Jordà, and Kuersteiner's study. Specifically, I focus on estimating local projections (LPs) for the Romer and Romer monetary policy shock. I then test these estimates using the significance bands method.
 
 ## Load packages
+
 Start by loading the necessary packages
+
 ```{r}
 library(tidyverse) # for data processing and plotting
 library(broom)     # for tidying regression output
-library(haven)     # for reading Stata .dta files
+library(readxl)    # for reading .xls files
 library(dynlm)     # for running dynamic regressions with leads and lags
 library(sandwich)  # for Newey-West standard errors
 library(lmtest)    # for coefficient tests
@@ -48,7 +49,8 @@ library(car)       # for linear hypothesis tests
 
 ## Basic setup
 
-Parameters
+Set the basic parameters
+
 ```{r}
 H     <- 17    # IRF horizon
 pval  <- 0.05  # p-value
@@ -57,7 +59,8 @@ nwlag <- H     # lags to be used in Newey-West
 block <- H     # bootstrap block size
 ```
 
-Sample
+Set the sample
+
 ```{r}
 smpl_start <- ymd("1985-01-01")
 smpl_end   <- ymd("2007-12-31")
@@ -66,25 +69,34 @@ smpl_end   <- ymd("2007-12-31")
 ## Data
 
 Load the `.dta` file
+
 ```{r}
-df_raw <- read_dta("data/aggregatedata_final.dta")
+df_raw <- read_xls("data/data.xls")
 ```
 
-Some preprocessing
-```{r}
-df <- df_raw %>%
-  mutate(
-    date   = observation_date,
-    dlcpi  = 100 * dlcpi, # scale to work in percent
-    lcpi   = 100 * lcpi   # scale to work in percent
-  ) %>% 
-  select(date, lcpi, rr_shock, dlcpi, dlrgdp, dstir) %>% 
-  rename(
-    y = lcpi,      # response 
-    z = rr_shock   # instrument
-  ) %>% 
-  filter(between(date, smpl_start, smpl_end))
+Some preprocessing steps include scaling the response variable lcpi to work in percent, renaming the response variable to y, and renaming the shock variable rr_shock to z.
 
+```{r}
+df <- df_raw %>% 
+  mutate(
+    date   = ymd(DATE),
+    lcpi   = 100 * log(GDPDEF),
+    dlcpi  = c(NA, 4 * diff(lcpi)),
+    lrgdp  = 100 * 4 * log(GDPC1),
+    dlrgdp = c(NA, diff(lrgdp)),
+    dstir  = c(NA, diff(FEDFUNDS))
+  ) %>% 
+  rename(
+    y = lcpi,      # response variable
+    z = RRSHOCK    # Romer and Romer shock
+  ) %>% 
+  filter(between(date, smpl_start, smpl_end)) %>% 
+  select(date, y, z, dlcpi, dlrgdp, dstir)
+```
+
+Add lthe ong differences of $y_t$, i.e., $\Delta^h y_{t+h} \equiv y_{t+h} - y_{t-1}$ for $h=1,…,H$
+
+```{r}
 df_fwd <- df %>% 
   bind_cols(
     map_dfc(0:17, ~ df %>%
@@ -94,12 +106,14 @@ df_fwd <- df %>%
 
 ## Orthogonalization
 
-Define the control variables
+Define the portion of the regression formula that includes both the constant and the control variables:
+
 ```{r}
 formula_x = "1 + L(dlrgdp, 1:lags) + L(dlcpi, 1:lags) + L(dstir, 1:lags)"
 ```
 
-Orthogonalize $z_t$ w.r.t. controls
+Orthogonalize $z_t$ with respect to the controls and store the residual in a variable named `r_z`:
+
 ```{r}
 formula_z <- paste0("z ~ ", formula_x) %>% as.formula()
 
@@ -110,7 +124,8 @@ df_r_z <- model_z$residuals %>%
   rename(r_z = 1)
 ```
 
-Orthogonalize $y_{t+h}$ w.r.t. controls
+Orthogonalize $\Delta_h y_{t+h}$ for $h=0,...,H$ with respect to the controls and store the residuals in `r_fy0`,...,`r_fyH`:
+
 ```{r}
 mat_r_y <- matrix(NA, length(df_r_z$r_z), H+1)
 
@@ -133,18 +148,22 @@ df_r_y <- mat_r_y %>%
 colnames(df_r_y) <- paste0("r_fy", 0:H)
 ```
 
+Combine the orthogonalized residuals into a single dataframe:
 
-Join the orthogonalized $y_{t_h}$ and $z_{t+h}$
 ```{r}
 df_r_yz <- df_r_y %>% 
   bind_cols(df_r_z) %>% 
   mutate(date = 1:n()) 
 ```
 
-
 ## Local projections
 
-Run the local projection procedure using the orthogonalized series
+Run the local projection procedure using the orthogonalized series. Specifically, the code below estimates the given regression model:
+
+$$
+ry_{t+h}=rz_t \beta_h+u_{t+h} \quad \text { for } h=0,1, \ldots, H-1 ; \quad t=1, \ldots, T
+$$
+
 ```{r}
 mat_lp <- matrix(data = NA, ncol = 7, nrow = H+1)  # matrix to store estimation results
 
@@ -177,7 +196,8 @@ colnames(df_lp) <-
   c("horizon", "mid", "se", "up1sd", "down1sd", "up2sd", "down2sd")
 ```
 
-plot LP and confidence bands
+Plot the LP and confidence bands (one and two standard deviations):
+
 ```{r}
 df_lp %>% 
   ggplot(aes(x = horizon)) +
@@ -201,22 +221,18 @@ df_lp %>%
   )
 ```
 
-
-
 ## Significance bands
 
-### Significance bands using asymptotic approximation:
+#### Significance bands using asymptotic approximation:
 
-1. Calculate the sample average of the product (the orthogonalized) $s_t z_t$. Call this $\hat{\gamma}_{s z}$.
-2. Construct the auxiliary variable $\eta_t=y_t z_t$ and regress $\eta_t$ on a constant. The Newey-West estimate of the standard error of the intercept coefficient is an estimate of $s_{\hat{\eta}}$.
-3. An estimate of $\sigma / \sqrt{T-h}$, call it $\hat{s}_{\beta_h}$, is therefore:
-$$
-\hat{s}_{\beta_h}=\frac{\hat{s}_\eta}{\hat{\gamma}_{s z}}
-$$
-4. Construct the significance bands as:
-$$
-\left[\zeta_{\alpha / 2 H} \hat{\mathrm{s}}_{\beta_h}, \zeta_{1-\alpha / 2 H} \hat{\mathrm{s}}_{\beta_h}\right]
-$$
+1.  Calculate the sample average of the product (the orthogonalized) $s_t z_t$. Call this $\hat{\gamma}_{s z}$.
+2.  Construct the auxiliary variable $\eta_t=y_t z_t$ and regress $\eta_t$ on a constant. The Newey-West estimate of the standard error of the intercept coefficient is an estimate of $s_{\hat{\eta}}$.
+3.  An estimate of $\sigma / \sqrt{T-h}$, call it $\hat{s}_{\beta_h}$, is therefore: $$
+    \hat{s}_{\beta_h}=\frac{\hat{s}_\eta}{\hat{\gamma}_{s z}}
+    $$
+4.  Construct the significance bands as: $$
+    \left[\zeta_{\alpha / 2 H} \hat{\mathrm{s}}_{\beta_h}, \zeta_{1-\alpha / 2 H} \hat{\mathrm{s}}_{\beta_h}\right]
+    $$
 
 ```{r}
 gamma      <- df_r_yz$r_z^2
@@ -233,19 +249,16 @@ bju <- qnorm(1 - (pval / (2 * (H + 1)))) * sbeta
 bjd <- -bju
 ```
 
-### Significance bands using the Wold-Block Bootstrap:
+#### Significance bands using the Wold-Block Bootstrap:
 
-1. Calculate the sample average of $s_t z_t$. Call this $\hat{\gamma}_{s z}$.
-2. Construct the auxiliary variable $\eta_t=y_t z_t$ and regress $\eta_t$ on a constant. The Wild Block bootstrap estimate of the standard error of the intercept coefficient is an estimate of $s_{\hat{\eta}}$.
-3. An estimate of $\sigma / \sqrt{T-h}$, call it $\hat{s}_{\beta_h}^b$, is therefore:
-$$
-\hat{s}_{\beta_h}^b=\frac{\hat{s}_{\eta \eta}^b}{\hat{\gamma}_{s z}}
-$$
-4. Construct the significance bands as:
-$$
-\left[\zeta_{\alpha / 2 H} \hat{s}_{\beta_{h^{\prime}}}^b \zeta_{1-\alpha / 2 H} \hat{s}_{\beta_h}^b\right]
-$$
-
+1.  Calculate the sample average of $s_t z_t$. Call this $\hat{\gamma}_{s z}$.
+2.  Construct the auxiliary variable $\eta_t=y_t z_t$ and regress $\eta_t$ on a constant. The Wild Block bootstrap estimate of the standard error of the intercept coefficient is an estimate of $s_{\hat{\eta}}$.
+3.  An estimate of $\sigma / \sqrt{T-h}$, call it $\hat{s}_{\beta_h}^b$, is therefore: $$
+    \hat{s}_{\beta_h}^b=\frac{\hat{s}_{\eta \eta}^b}{\hat{\gamma}_{s z}}
+    $$
+4.  Construct the significance bands as: $$
+    \left[\zeta_{\alpha / 2 H} \hat{s}_{\beta_{h^{\prime}}}^b \zeta_{1-\alpha / 2 H} \hat{s}_{\beta_h}^b\right]
+    $$
 
 ```{r}
 set.seed(12345)   # for replication
@@ -262,7 +275,8 @@ bootju <- qnorm(1 - (pval / (2 * (H + 1)))) * sbeta
 bootjd <- -bootju
 ```
 
-Join significance bands estimation results
+Combine the estimation results of significance bands into a single dataframe:
+
 ```{r}
 df_sb <- tibble(
   bju    = rep(bju, H+1),
@@ -273,6 +287,7 @@ df_sb <- tibble(
 ```
 
 The following graph illustrates the impulse response of 100 times the logarithm of the Consumer Price Index (CPI) following a Romer and Romer (2004) monetary olicy shock (extended by Wieland and Yang, 2020.) The model includes four lagged variables for CPI inflation, GDP growth, and a one-year Treasury Bill rate. The data sample covers the period from the first quarter of 1985 to the fourth quarter of 2007. Confidence bands at the 95% significance level are displayed; classical NW bands are shown in dashed blue and bootstrap bands in dashed red. Dark and light shaded areas indicate bands corresponding to one and two standard errors, respectively. For further details, refer to [Inoue, Jordà, and Kuersteiner (2023.)](https://arxiv.org/abs/2306.03073)
+
 ```{r}
 df_lp %>% 
   bind_cols(df_sb) %>% 
@@ -301,12 +316,12 @@ df_lp %>%
   )
 ```
 
-
 ## Stacked LPs
 
 In this section, we employ a technique proposed by Jordà, where we estimate the $h$ local projection regression simultaneously as a panel anduse Driscoll-Kraay HAC robust standard errors for inference. The advantage of this estimation method is that it provides us with the coefficients' variance-covariance matrix, thereby enabling us to test the hypothesis that $\beta_h=0$ for all $h$.
 
-We start by transforming the data to long format
+We start by pivoting the data to long format
+
 ```{r}
 df_r_yz_long <- df_r_yz %>%
   pivot_longer(-c(date, r_z), names_to = "horizon", values_to = "r_fy") %>%
@@ -316,17 +331,20 @@ df_r_yz_long <- df_r_yz %>%
   select(date, horizon, r_fy, r_z)
 ```
 
-Next, we estimate the stacked data as a panel using the `plm` package:
+Next, we estimate the data stacked as a panel using the `plm` package:
+
 ```{r}
 library(plm)  # to estimate panel data models
 
 plm_model <- plm(r_fy ~ factor(horizon):r_z, data = df_r_yz_long, index = c("horizon", "date"), model = "within")
 ```
 
-Finally, we perform the joint hypothesis test:
+Finally, we conduct the joint hypothesis test, namely: $$
+H_0: \beta_h=0, \text{for } h=0,\ldots,H
+$$
+
 ```{r}
 hypothesis <- sapply(0:H, function(i) paste0("factor(horizon)", i, ":r_z = 0"))
 
 linearHypothesis(plm_model, hypothesis, vcov. = function(x) vcovSCC(x, maxlag=nwlag))
 ```
-
