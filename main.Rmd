@@ -221,6 +221,8 @@ df_lp %>%
   )
 ```
 
+The figure illustrates the impulse response of 100 times the logarithm of the GDP deflator following a Romer and Romer (2004) monetary olicy shock (extended by Wieland and Yang, 2020.) The model includes four lagged variables for the GDP deflator, real GDP growth, and the Federal Funds Rate. Dark and light green shaded areas indicate bands corresponding to one and two standard errors, respectively. For further details, refer to [Inoue, Jordà, and Kuersteiner (2023.)](#0)
+
 ## Significance bands
 
 #### Significance bands using asymptotic approximation:
@@ -286,7 +288,7 @@ df_sb <- tibble(
 )
 ```
 
-The following graph illustrates the impulse response of 100 times the logarithm of the Consumer Price Index (CPI) following a Romer and Romer (2004) monetary olicy shock (extended by Wieland and Yang, 2020.) The model includes four lagged variables for CPI inflation, GDP growth, and a one-year Treasury Bill rate. The data sample covers the period from the first quarter of 1985 to the fourth quarter of 2007. Confidence bands at the 95% significance level are displayed; classical NW bands are shown in dashed blue and bootstrap bands in dashed red. Dark and light shaded areas indicate bands corresponding to one and two standard errors, respectively. For further details, refer to [Inoue, Jordà, and Kuersteiner (2023.)](https://arxiv.org/abs/2306.03073)
+The following figure adds classical NW significance bands, shown in dashed blue and bootstrap significance bands, shoen in dashed red.
 
 ```{r}
 df_lp %>% 
