@@ -11,7 +11,7 @@
 
 <meta name="author" content="Itamar Caspi" />
 
-<meta name="date" content="2023-09-30" />
+<meta name="date" content="2023-10-01" />
 
 <title>Significance Bands for Local Projetsions in R</title>
 
@@ -1668,7 +1668,7 @@ border-radius: 0px;
 <h1 class="title toc-ignore">Significance Bands for Local Projetsions in
 R</h1>
 <h4 class="author">Itamar Caspi</h4>
-<h4 class="date">2023-09-30</h4>
+<h4 class="date">2023-10-01</h4>
 <div class="abstract">
 <p class="abstract">Abstract</p>
 This note aims to replicate the main finding presented in the paper
@@ -1873,17 +1873,18 @@ estimate of <span class="math inline">\(s_{\hat{\eta}}\)</span>.</li>
 2 H} \hat{\mathrm{s}}_{\beta_h}\right]
 \]</span></li>
 </ol>
-<div class="sourceCode" id="cb12"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb12-1"><a href="#cb12-1" tabindex="-1"></a>w         <span class="ot">&lt;-</span> df_r_yz<span class="sc">$</span>r_z<span class="sc">^</span><span class="dv">2</span></span>
-<span id="cb12-2"><a href="#cb12-2" tabindex="-1"></a>mw        <span class="ot">&lt;-</span> <span class="fu">mean</span>(w)</span>
-<span id="cb12-3"><a href="#cb12-3" tabindex="-1"></a>eta       <span class="ot">&lt;-</span> df_r_yz<span class="sc">$</span>r_fy0 <span class="sc">*</span> df_r_yz<span class="sc">$</span>r_z<span class="sc">^</span><span class="dv">2</span></span>
-<span id="cb12-4"><a href="#cb12-4" tabindex="-1"></a>model_eta <span class="ot">&lt;-</span> <span class="fu">lm</span>(eta <span class="sc">~</span> <span class="dv">1</span>)</span>
-<span id="cb12-5"><a href="#cb12-5" tabindex="-1"></a></span>
-<span id="cb12-6"><a href="#cb12-6" tabindex="-1"></a>nw_se_eta <span class="ot">&lt;-</span> <span class="fu">sqrt</span>(<span class="fu">diag</span>(<span class="fu">NeweyWest</span>(model_eta, <span class="at">lag =</span> nwlag)))</span>
-<span id="cb12-7"><a href="#cb12-7" tabindex="-1"></a>seta      <span class="ot">&lt;-</span> nw_se_eta[<span class="st">&quot;(Intercept)&quot;</span>]</span>
-<span id="cb12-8"><a href="#cb12-8" tabindex="-1"></a>sbeta     <span class="ot">&lt;-</span> seta<span class="sc">/</span>mw</span>
-<span id="cb12-9"><a href="#cb12-9" tabindex="-1"></a></span>
-<span id="cb12-10"><a href="#cb12-10" tabindex="-1"></a>bju <span class="ot">&lt;-</span> <span class="fu">qnorm</span>(<span class="dv">1</span> <span class="sc">-</span> (pval <span class="sc">/</span> (<span class="dv">2</span> <span class="sc">*</span> (H <span class="sc">+</span> <span class="dv">1</span>)))) <span class="sc">*</span> sbeta</span>
-<span id="cb12-11"><a href="#cb12-11" tabindex="-1"></a>bjd <span class="ot">&lt;-</span> <span class="sc">-</span>bju</span></code></pre></div>
+<div class="sourceCode" id="cb12"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb12-1"><a href="#cb12-1" tabindex="-1"></a>gamma      <span class="ot">&lt;-</span> df_r_yz<span class="sc">$</span>r_z<span class="sc">^</span><span class="dv">2</span></span>
+<span id="cb12-2"><a href="#cb12-2" tabindex="-1"></a>gamma_mean <span class="ot">&lt;-</span> <span class="fu">mean</span>(gamma)</span>
+<span id="cb12-3"><a href="#cb12-3" tabindex="-1"></a></span>
+<span id="cb12-4"><a href="#cb12-4" tabindex="-1"></a>eta        <span class="ot">&lt;-</span> df_r_yz<span class="sc">$</span>r_fy0 <span class="sc">*</span> df_r_yz<span class="sc">$</span>r_z<span class="sc">^</span><span class="dv">2</span></span>
+<span id="cb12-5"><a href="#cb12-5" tabindex="-1"></a>model_eta  <span class="ot">&lt;-</span> <span class="fu">lm</span>(eta <span class="sc">~</span> <span class="dv">1</span>)</span>
+<span id="cb12-6"><a href="#cb12-6" tabindex="-1"></a>nw_se_eta  <span class="ot">&lt;-</span> <span class="fu">sqrt</span>(<span class="fu">diag</span>(<span class="fu">NeweyWest</span>(model_eta, <span class="at">lag =</span> nwlag)))</span>
+<span id="cb12-7"><a href="#cb12-7" tabindex="-1"></a>seta       <span class="ot">&lt;-</span> nw_se_eta[<span class="st">&quot;(Intercept)&quot;</span>]</span>
+<span id="cb12-8"><a href="#cb12-8" tabindex="-1"></a></span>
+<span id="cb12-9"><a href="#cb12-9" tabindex="-1"></a>sbeta      <span class="ot">&lt;-</span> seta<span class="sc">/</span>gamma_mean</span>
+<span id="cb12-10"><a href="#cb12-10" tabindex="-1"></a></span>
+<span id="cb12-11"><a href="#cb12-11" tabindex="-1"></a>bju <span class="ot">&lt;-</span> <span class="fu">qnorm</span>(<span class="dv">1</span> <span class="sc">-</span> (pval <span class="sc">/</span> (<span class="dv">2</span> <span class="sc">*</span> (H <span class="sc">+</span> <span class="dv">1</span>)))) <span class="sc">*</span> sbeta</span>
+<span id="cb12-12"><a href="#cb12-12" tabindex="-1"></a>bjd <span class="ot">&lt;-</span> <span class="sc">-</span>bju</span></code></pre></div>
 </div>
 <div id="significance-bands-using-the-wold-block-bootstrap" class="section level3">
 <h3>Significance bands using the Wold-Block Bootstrap:</h3>
@@ -1904,16 +1905,17 @@ an estimate of <span class="math inline">\(s_{\hat{\eta}}\)</span>.</li>
 \]</span></li>
 </ol>
 <div class="sourceCode" id="cb13"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb13-1"><a href="#cb13-1" tabindex="-1"></a><span class="fu">set.seed</span>(<span class="dv">12345</span>)   <span class="co"># for replication</span></span>
-<span id="cb13-2"><a href="#cb13-2" tabindex="-1"></a></span>
-<span id="cb13-3"><a href="#cb13-3" tabindex="-1"></a>n         <span class="ot">&lt;-</span> <span class="fu">length</span>(df_r_yz<span class="sc">$</span>r_fy0)</span>
-<span id="cb13-4"><a href="#cb13-4" tabindex="-1"></a>block_id  <span class="ot">&lt;-</span> <span class="fu">floor</span>((<span class="dv">1</span><span class="sc">:</span>n <span class="sc">+</span> block <span class="sc">-</span> <span class="dv">1</span>) <span class="sc">/</span> block)</span>
+<span id="cb13-2"><a href="#cb13-2" tabindex="-1"></a>n         <span class="ot">&lt;-</span> <span class="fu">length</span>(df_r_yz<span class="sc">$</span>r_fy0)</span>
+<span id="cb13-3"><a href="#cb13-3" tabindex="-1"></a>block_id  <span class="ot">&lt;-</span> <span class="fu">floor</span>((<span class="dv">1</span><span class="sc">:</span>n <span class="sc">+</span> block <span class="sc">-</span> <span class="dv">1</span>) <span class="sc">/</span> block)</span>
+<span id="cb13-4"><a href="#cb13-4" tabindex="-1"></a></span>
 <span id="cb13-5"><a href="#cb13-5" tabindex="-1"></a>model_eta <span class="ot">&lt;-</span> <span class="fu">lm</span>(eta <span class="sc">~</span> <span class="dv">1</span>)</span>
 <span id="cb13-6"><a href="#cb13-6" tabindex="-1"></a>nw_se_eta <span class="ot">&lt;-</span> <span class="fu">sqrt</span>(<span class="fu">diag</span>(<span class="fu">vcovBS</span>(model_eta, <span class="at">cluster =</span> block_id, <span class="at">R =</span> <span class="dv">1000</span>)))</span>
 <span id="cb13-7"><a href="#cb13-7" tabindex="-1"></a>seta      <span class="ot">&lt;-</span> nw_se_eta[<span class="st">&quot;(Intercept)&quot;</span>]</span>
-<span id="cb13-8"><a href="#cb13-8" tabindex="-1"></a>sbeta     <span class="ot">&lt;-</span> seta<span class="sc">/</span>mw</span>
-<span id="cb13-9"><a href="#cb13-9" tabindex="-1"></a></span>
-<span id="cb13-10"><a href="#cb13-10" tabindex="-1"></a>bootju <span class="ot">&lt;-</span> <span class="fu">qnorm</span>(<span class="dv">1</span> <span class="sc">-</span> (pval <span class="sc">/</span> (<span class="dv">2</span> <span class="sc">*</span> (H <span class="sc">+</span> <span class="dv">1</span>)))) <span class="sc">*</span> sbeta</span>
-<span id="cb13-11"><a href="#cb13-11" tabindex="-1"></a>bootjd <span class="ot">&lt;-</span> <span class="sc">-</span>bootju</span></code></pre></div>
+<span id="cb13-8"><a href="#cb13-8" tabindex="-1"></a></span>
+<span id="cb13-9"><a href="#cb13-9" tabindex="-1"></a>sbeta     <span class="ot">&lt;-</span> seta<span class="sc">/</span>gamma_mean</span>
+<span id="cb13-10"><a href="#cb13-10" tabindex="-1"></a></span>
+<span id="cb13-11"><a href="#cb13-11" tabindex="-1"></a>bootju <span class="ot">&lt;-</span> <span class="fu">qnorm</span>(<span class="dv">1</span> <span class="sc">-</span> (pval <span class="sc">/</span> (<span class="dv">2</span> <span class="sc">*</span> (H <span class="sc">+</span> <span class="dv">1</span>)))) <span class="sc">*</span> sbeta</span>
+<span id="cb13-12"><a href="#cb13-12" tabindex="-1"></a>bootjd <span class="ot">&lt;-</span> <span class="sc">-</span>bootju</span></code></pre></div>
 <p>Join significance bands estimation results</p>
 <div class="sourceCode" id="cb14"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb14-1"><a href="#cb14-1" tabindex="-1"></a>df_sb <span class="ot">&lt;-</span> <span class="fu">tibble</span>(</span>
 <span id="cb14-2"><a href="#cb14-2" tabindex="-1"></a>  <span class="at">bju    =</span> <span class="fu">rep</span>(bju, H<span class="sc">+</span><span class="dv">1</span>),</span>

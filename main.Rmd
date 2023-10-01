@@ -219,14 +219,15 @@ $$
 $$
 
 ```{r}
-w         <- df_r_yz$r_z^2
-mw        <- mean(w)
-eta       <- df_r_yz$r_fy0 * df_r_yz$r_z^2
-model_eta <- lm(eta ~ 1)
+gamma      <- df_r_yz$r_z^2
+gamma_mean <- mean(gamma)
 
-nw_se_eta <- sqrt(diag(NeweyWest(model_eta, lag = nwlag)))
-seta      <- nw_se_eta["(Intercept)"]
-sbeta     <- seta/mw
+eta        <- df_r_yz$r_fy0 * df_r_yz$r_z^2
+model_eta  <- lm(eta ~ 1)
+nw_se_eta  <- sqrt(diag(NeweyWest(model_eta, lag = nwlag)))
+seta       <- nw_se_eta["(Intercept)"]
+
+sbeta      <- seta/gamma_mean
 
 bju <- qnorm(1 - (pval / (2 * (H + 1)))) * sbeta
 bjd <- -bju
@@ -248,13 +249,14 @@ $$
 
 ```{r}
 set.seed(12345)   # for replication
-
 n         <- length(df_r_yz$r_fy0)
 block_id  <- floor((1:n + block - 1) / block)
+
 model_eta <- lm(eta ~ 1)
 nw_se_eta <- sqrt(diag(vcovBS(model_eta, cluster = block_id, R = 1000)))
 seta      <- nw_se_eta["(Intercept)"]
-sbeta     <- seta/mw
+
+sbeta     <- seta/gamma_mean
 
 bootju <- qnorm(1 - (pval / (2 * (H + 1)))) * sbeta
 bootjd <- -bootju
