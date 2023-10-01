@@ -1738,24 +1738,24 @@ test these estimates using the significance bands method.</p>
 <h2>Data</h2>
 <p>Load the <code>.dta</code> file</p>
 <div class="sourceCode" id="cb4"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb4-1"><a href="#cb4-1" tabindex="-1"></a>df_raw <span class="ot">&lt;-</span> <span class="fu">read_xls</span>(<span class="st">&quot;data/data.xls&quot;</span>)</span></code></pre></div>
-<p>Some preprocessing steps include scaling the response variable lcpi
+<p>Some preprocessing steps include scaling the response variable ldef
 to work in percent, renaming the response variable to y, and renaming
 the shock variable rr_shock to z.</p>
 <div class="sourceCode" id="cb5"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb5-1"><a href="#cb5-1" tabindex="-1"></a>df <span class="ot">&lt;-</span> df_raw <span class="sc">%&gt;%</span> </span>
 <span id="cb5-2"><a href="#cb5-2" tabindex="-1"></a>  <span class="fu">mutate</span>(</span>
 <span id="cb5-3"><a href="#cb5-3" tabindex="-1"></a>    <span class="at">date   =</span> <span class="fu">ymd</span>(DATE),</span>
-<span id="cb5-4"><a href="#cb5-4" tabindex="-1"></a>    <span class="at">lcpi   =</span> <span class="dv">100</span> <span class="sc">*</span> <span class="fu">log</span>(GDPDEF),</span>
-<span id="cb5-5"><a href="#cb5-5" tabindex="-1"></a>    <span class="at">dlcpi  =</span> <span class="fu">c</span>(<span class="cn">NA</span>, <span class="dv">4</span> <span class="sc">*</span> <span class="fu">diff</span>(lcpi)),</span>
+<span id="cb5-4"><a href="#cb5-4" tabindex="-1"></a>    <span class="at">ldef   =</span> <span class="dv">100</span> <span class="sc">*</span> <span class="fu">log</span>(GDPDEF),</span>
+<span id="cb5-5"><a href="#cb5-5" tabindex="-1"></a>    <span class="at">dldef  =</span> <span class="fu">c</span>(<span class="cn">NA</span>, <span class="dv">4</span> <span class="sc">*</span> <span class="fu">diff</span>(ldef)),</span>
 <span id="cb5-6"><a href="#cb5-6" tabindex="-1"></a>    <span class="at">lrgdp  =</span> <span class="dv">100</span> <span class="sc">*</span> <span class="dv">4</span> <span class="sc">*</span> <span class="fu">log</span>(GDPC1),</span>
 <span id="cb5-7"><a href="#cb5-7" tabindex="-1"></a>    <span class="at">dlrgdp =</span> <span class="fu">c</span>(<span class="cn">NA</span>, <span class="fu">diff</span>(lrgdp)),</span>
 <span id="cb5-8"><a href="#cb5-8" tabindex="-1"></a>    <span class="at">dstir  =</span> <span class="fu">c</span>(<span class="cn">NA</span>, <span class="fu">diff</span>(FEDFUNDS))</span>
 <span id="cb5-9"><a href="#cb5-9" tabindex="-1"></a>  ) <span class="sc">%&gt;%</span> </span>
 <span id="cb5-10"><a href="#cb5-10" tabindex="-1"></a>  <span class="fu">rename</span>(</span>
-<span id="cb5-11"><a href="#cb5-11" tabindex="-1"></a>    <span class="at">y =</span> lcpi,      <span class="co"># response variable</span></span>
+<span id="cb5-11"><a href="#cb5-11" tabindex="-1"></a>    <span class="at">y =</span> ldef,      <span class="co"># response variable</span></span>
 <span id="cb5-12"><a href="#cb5-12" tabindex="-1"></a>    <span class="at">z =</span> RRSHOCK    <span class="co"># Romer and Romer shock</span></span>
 <span id="cb5-13"><a href="#cb5-13" tabindex="-1"></a>  ) <span class="sc">%&gt;%</span> </span>
 <span id="cb5-14"><a href="#cb5-14" tabindex="-1"></a>  <span class="fu">filter</span>(<span class="fu">between</span>(date, smpl_start, smpl_end)) <span class="sc">%&gt;%</span> </span>
-<span id="cb5-15"><a href="#cb5-15" tabindex="-1"></a>  <span class="fu">select</span>(date, y, z, dlcpi, dlrgdp, dstir)</span></code></pre></div>
+<span id="cb5-15"><a href="#cb5-15" tabindex="-1"></a>  <span class="fu">select</span>(date, y, z, dldef, dlrgdp, dstir)</span></code></pre></div>
 <p>Add lthe ong differences of <span class="math inline">\(y_t\)</span>,
 i.e., <span class="math inline">\(\Delta^h y_{t+h} \equiv y_{t+h} -
 y_{t-1}\)</span> for <span class="math inline">\(h=1,…,H\)</span></p>
@@ -1769,7 +1769,7 @@ y_{t-1}\)</span> for <span class="math inline">\(h=1,…,H\)</span></p>
 <h2>Orthogonalization</h2>
 <p>Define the portion of the regression formula that includes both the
 constant and the control variables:</p>
-<div class="sourceCode" id="cb7"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb7-1"><a href="#cb7-1" tabindex="-1"></a>formula_x <span class="ot">=</span> <span class="st">&quot;1 + L(dlrgdp, 1:lags) + L(dlcpi, 1:lags) + L(dstir, 1:lags)&quot;</span></span></code></pre></div>
+<div class="sourceCode" id="cb7"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb7-1"><a href="#cb7-1" tabindex="-1"></a>formula_x <span class="ot">=</span> <span class="st">&quot;1 + L(dlrgdp, 1:lags) + L(dldef, 1:lags) + L(dstir, 1:lags)&quot;</span></span></code></pre></div>
 <p>Orthogonalize <span class="math inline">\(z_t\)</span> with respect
 to the controls and store the residual in a variable named
 <code>r_z</code>:</p>

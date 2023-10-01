@@ -74,24 +74,24 @@ Load the `.dta` file
 df_raw <- read_xls("data/data.xls")
 ```
 
-Some preprocessing steps include scaling the response variable lcpi to work in percent, renaming the response variable to y, and renaming the shock variable rr_shock to z.
+Some preprocessing steps include scaling the response variable ldef to work in percent, renaming the response variable to y, and renaming the shock variable rr_shock to z.
 
 ```{r}
 df <- df_raw %>% 
   mutate(
     date   = ymd(DATE),
-    lcpi   = 100 * log(GDPDEF),
-    dlcpi  = c(NA, 4 * diff(lcpi)),
+    ldef   = 100 * log(GDPDEF),
+    dldef  = c(NA, 4 * diff(ldef)),
     lrgdp  = 100 * 4 * log(GDPC1),
     dlrgdp = c(NA, diff(lrgdp)),
     dstir  = c(NA, diff(FEDFUNDS))
   ) %>% 
   rename(
-    y = lcpi,      # response variable
+    y = ldef,      # response variable
     z = RRSHOCK    # Romer and Romer shock
   ) %>% 
   filter(between(date, smpl_start, smpl_end)) %>% 
-  select(date, y, z, dlcpi, dlrgdp, dstir)
+  select(date, y, z, dldef, dlrgdp, dstir)
 ```
 
 Add lthe ong differences of $y_t$, i.e., $\Delta^h y_{t+h} \equiv y_{t+h} - y_{t-1}$ for $h=1,…,H$
@@ -109,7 +109,7 @@ df_fwd <- df %>%
 Define the portion of the regression formula that includes both the constant and the control variables:
 
 ```{r}
-formula_x = "1 + L(dlrgdp, 1:lags) + L(dlcpi, 1:lags) + L(dstir, 1:lags)"
+formula_x = "1 + L(dlrgdp, 1:lags) + L(dldef, 1:lags) + L(dstir, 1:lags)"
 ```
 
 Orthogonalize $z_t$ with respect to the controls and store the residual in a variable named `r_z`:
