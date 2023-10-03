@@ -1,6 +1,8 @@
 ---
 title: "Significance Bands for Local Projetsions Using R"
-author: "Itamar Caspi"
+author: 
+  - name: "Itamar Caspi^[DISCLAIMER: The views expressed in this notebook are my own and do not represent the views of the Bank of Israel or any of its staff members.]"
+    affiliation: "Bank of Israel"
 date: "`r Sys.Date()`"
 output:
   html_document:
