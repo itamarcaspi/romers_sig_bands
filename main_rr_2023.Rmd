@@ -1,5 +1,5 @@
 ---
-title: "Significance Bands for Local Projetsions in R"
+title: "Significance Bands for Local Projetsions Using R"
 author: "Itamar Caspi"
 date: "`r Sys.Date()`"
 output:
@@ -11,7 +11,7 @@ output:
     toc: yes
     toc_depth: 4
     toc_float: yes
-abstract: This notebook replicates the main finding presented in the paper "Significance Bands for Local Projections" by [Inoue, Jordà, and Kuersteiner (2023)](https://arxiv.org/abs/2306.03073). The original paper outlines the importance of using significance bands instead of traditional confidence bands for evaluating the dynamic impact of a treatment on an outcome variable via local projections. In particular, the note employs the R programming language to implement these methods, providing a detailed, step-by-step guide for researchers interested in applying them in their own analyses.
+abstract: This notebook employs the "Significance Bands for Local Projections" methodology, as detailed by [Inoue, Jordà, and Kuersteiner (2023)](https://arxiv.org/abs/2306.03073), henceforth referred to as IJK, to examine the impact of monetary policy shocks (Romer and Romer, 2023) on inflation. The importance of utilizing significance bands, as opposed to traditional confidence bands, is underscored by IJK, especially when evaluating the dynamic influence of a treatment on an outcome variable through local projections. I show how to implement these methods using the R programming language and provide a comprehensive, step-by-step guide aimed at assisting researchers who wish to apply these techniques to their own analyses.
 ---
 
 ```{r setup, include=FALSE}
@@ -29,9 +29,9 @@ knitr::opts_chunk$set(
 
 Standard statistical software and the Lagrange multiplier principle make constructing significance bands straightforward under the null hypothesis. This ease of construction is a noteworthy advantage. The bands' calculations do not depend on the impulse response horizon, and the paper provides approximate formulas. The authors also discuss bootstrap methods as a less assumption-reliant approach.
 
-Monte Carlo simulations show that the proposed significance bands outperform traditional confidence bands. The simulations reveal that these bands have favorable size and power properties compared to solely considering whether confidence bands include zero. Thus, the authors argue that significance bands should be a standard graphical representation for impulse response functions.
+Monte Carlo simulations show that IJK's proposed significance bands outperform traditional confidence bands. The simulations reveal that these bands have favorable size and power properties compared to solely considering whether confidence bands include zero. Thus, the authors argue that significance bands should be a standard graphical representation for impulse response functions.
 
-In this paper, I replicate key findings from Inoue, Jordà, and Kuersteiner's study. Specifically, I focus on estimating local projections (LPs) for the Romer and Romer monetary policy shock. I then test these estimates using the significance bands method.
+In this paper, I replicate key findings from IJK's study. Specifically, I focus on estimating local projections (LPs) for the Romer and Romer monetary policy shock (Romer and Romer, 2023.) I then test these estimates using the significance bands method.
 
 ## Load packages
 
@@ -52,9 +52,9 @@ library(car)       # for linear hypothesis tests
 Set the basic parameters
 
 ```{r}
-H     <- 17    # IRF horizon
+H     <- 20    # LP horizon (in quarters)
 pval  <- 0.05  # p-value
-lags  <- 6     # lags to be used in LP regressions
+lags  <- 4     # lags to be used in LP regressions
 nwlag <- H     # lags to be used in Newey-West
 block <- H     # bootstrap block size
 ```
@@ -62,106 +62,112 @@ block <- H     # bootstrap block size
 Set the sample
 
 ```{r}
-smpl_start <- ymd("1985-01-01")
-smpl_end   <- ymd("2007-12-31")
+smpl_start <- ymd("1947-01-01")
+smpl_end   <- ymd("2016-12-31")
 ```
 
 ## Data
 
-Load the `.dta` file
+Load the Romer and Romer (2023) dataset ([link to source](https://www.openicpsr.org/openicpsr/project/185843/version/V1/view))
 
 ```{r}
-df_raw <- read_xls("data/data.xls")
+df_raw <- read_excel(
+  "data/Romer&Romer_Data.xlsx",
+  sheet = "Quarterly Data",
+  skip = 13
+)
 ```
 
-Some preprocessing steps include scaling the response variable ldef to work in percent, renaming the response variable to y, and renaming the shock variable rr_shock to z.
+Some preprocessing steps including computing the logarithm of the GDP price index (`GDPPI`) and renaming it as `y`, and renaming the monetary policy shock variable (`RRDUMY`) to `s`:
 
 ```{r}
 df <- df_raw %>% 
-  mutate(
-    date   = ymd(DATE),
-    ldef   = 100 * log(GDPDEF),
-    dldef  = c(NA, 4 * diff(ldef)),
-    lrgdp  = 100 * log(GDPC1),
-    dlrgdp = c(NA, 4 * diff(lrgdp)),
-    dstir  = c(NA, diff(FEDFUNDS))
-  ) %>% 
   rename(
-    y = ldef,      # response variable
-    z = RRSHOCK    # Romer and Romer shock
+    date = 1,
+    s    = RRDUMMY
+  ) %>% 
+  mutate(
+    year    = as.integer(substr(date, 1, 4)),
+    quarter = as.integer(substr(date, 6, 6)),
+    month   = (quarter - 1) * 3 + 1,
+    date    = make_date(year, month, 1),
+    # y       = c(NA, 400 * diff(log(GDPPI)))
+    y       = 100 * log(GDPPI)
   ) %>% 
   filter(between(date, smpl_start, smpl_end)) %>% 
-  select(date, y, z, dldef, dlrgdp, dstir)
+  select(date, s, y) %>% 
+  drop_na()
 ```
 
-Add lthe ong differences of $y_t$, i.e., $\Delta^h y_{t+h} \equiv y_{t+h} - y_{t-1}$ for $h=1,…,H$
+Compute the *long differences* of $y_t$, i.e., $\Delta^h y_{t+h} \equiv y_{t+h} - y_{t-1}$ for $h=1,…,H$:
 
 ```{r}
 df_fwd <- df %>% 
   bind_cols(
-    map_dfc(0:17, ~ df %>%
-             transmute(!!paste0("ldy", .x) := lead(y, .x) - lag(y, 1)))
+    map_dfc(
+      0:H, ~ df %>%
+        transmute(!!paste0("fy", .x) := lead(y, .x) - lag(y, 1)))
   )
 ```
 
 ## Orthogonalization
 
-Define the portion of the regression formula that includes both the constant and the control variables:
+Define the portion of the regression formula that includes both the constant and the control variables (4 lags of `s` and `y`):
 
 ```{r}
-formula_x = "1 + L(dlrgdp, 1:lags) + L(dldef, 1:lags) + L(dstir, 1:lags)"
+formula_x = "L(y, 1:lags) + L(s, 1:lags)"
 ```
 
-Orthogonalize $z_t$ with respect to the controls and store the residual in a variable named `r_z`:
+Orthogonalize $z_t$ with respect to the controls and store the residual in a variable named `e_s`:
 
 ```{r}
-formula_z <- paste0("z ~ ", formula_x) %>% as.formula()
+formula_s <- paste0("s ~ ", formula_x) %>% as.formula()
 
-model_z <- dynlm(formula_z, data = df_fwd %>% ts())
+model_s <- dynlm(formula_s, data = df_fwd %>% ts())
 
-df_r_z <- model_z$residuals %>% 
+df_e_s <- model_s$residuals %>% 
   as_tibble() %>% 
-  rename(r_z = 1)
+  rename(e_s = 1)
 ```
 
-Orthogonalize $\Delta_h y_{t+h}$ for $h=0,...,H$ with respect to the controls and store the residuals in `r_fy0`,...,`r_fyH`:
+Orthogonalize $\Delta_h y_{t+h}$ for $h=0,...,H$ with respect to the controls and store the residuals in `e_fy0`,...,`e_fyH`:
 
 ```{r}
-mat_r_y <- matrix(NA, length(df_r_z$r_z), H+1)
+mat_e_y <- matrix(NA, length(df_e_s$e_s), H+1)
 
 for (i in 0:H) {
   
-  formula_y <- paste0("ldy", i, "~ ", formula_x) %>%  as.formula()
+  formula_y <- paste0("fy", i, "~ ", formula_x) %>%  as.formula()
   model_y   <- dynlm(formula_y, data = df_fwd %>% ts())
   
   if (i == 0) {
-    mat_r_y[ , i+1] <- model_y$residuals %>% as.vector()
+    mat_e_y[ , i+1] <- model_y$residuals %>% as.vector()
   } else{
-    mat_r_y[ , i+1] <- c(model_y$residuals %>% as.vector(), rep(NA, i))
+    mat_e_y[ , i+1] <- c(model_y$residuals %>% as.vector(), rep(NA, i))
   }
 
 }
 
-df_r_y <- mat_r_y %>% 
+df_e_y <- mat_e_y %>% 
   as_tibble()
 
-colnames(df_r_y) <- paste0("r_fy", 0:H)
+colnames(df_e_y) <- paste0("e_fy", 0:H)
 ```
 
 Combine the orthogonalized residuals into a single dataframe:
 
 ```{r}
-df_r_yz <- df_r_y %>% 
-  bind_cols(df_r_z) %>% 
+df_e_ys <- df_e_y %>% 
+  bind_cols(df_e_s) %>% 
   mutate(date = 1:n()) 
 ```
 
 ## Local projections
 
-Run the local projection procedure using the orthogonalized series. Specifically, the code below estimates the given regression model:
+Run local projections using the orthogonalized series. Specifically, estimate the given regression model:
 
 $$
-ry_{t+h}=rz_t \beta_h+u_{t+h} \quad \text { for } h=0,1, \ldots, H-1 ; \quad t=1, \ldots, T
+e^y_{t+h}=e^s_t \beta_h+u_{t+h} \quad \text { for } h=0,1, \ldots, H-1 ; \quad t=1, \ldots, T
 $$
 
 ```{r}
@@ -169,15 +175,15 @@ mat_lp <- matrix(data = NA, ncol = 7, nrow = H+1)  # matrix to store estimation 
 
 for (i in 0:H) {
   
-  formula_r_y <- paste0("r_fy", i, " ~ r_z -1") %>% as.formula()
-  lp_fit      <- dynlm(formula_r_y, data = df_r_yz %>% ts())
+  formula_e_y <- paste0("e_fy", i, " ~ e_s -1") %>% as.formula()
+  lp_fit      <- dynlm(formula_e_y, data = df_e_ys %>% ts())
   
-  nw_se     <- sqrt(diag(NeweyWest(lp_fit, lag = i)))
+  nw_se     <- sqrt(diag(NeweyWest(lp_fit, lag = i, prewhite = FALSE)))
   n         <- length(lp_fit$residuals)
-  nw_se_adj <- nw_se * sqrt((n - 1) / (n - 20))
+  nw_se_adj <- nw_se * sqrt((n - 1) / (n - 1 - 8)) # adjust for degrees of freedom
 
-  beta_i      <- lp_fit$coefficients["r_z"]
-  se_beta_i   <-  nw_se_adj["r_z"]
+  beta_i      <- lp_fit$coefficients["e_s"]
+  se_beta_i   <-  nw_se_adj["e_s"]
   
   mat_lp[i+1, 1] <- i
   mat_lp[i+1, 2] <- beta_i
@@ -206,15 +212,15 @@ df_lp %>%
               fill = "darkgreen", linetype = 0, alpha = 0.2) +
   geom_ribbon(aes(ymin = down2sd, ymax = up2sd),
               fill = "darkgreen", linetype = 0, alpha = 0.1) +
-  scale_x_continuous(expand = c(0,0), breaks = seq(0, H, 5)) +
-  scale_y_continuous(expand = c(0,0), limits = c(-6, 2)) +
+  scale_x_continuous(expand = c(0,0), breaks = seq(0, H, 1)) +
+  # scale_y_continuous(expand = c(0,0), limits = c(-4, 4)) +
   labs(
-    x = "Quearter",
-    y = "Percent",
-    title = "Cumulative response of the CPI in percent to a Romer monetary shock",
+    x = "Quarters after the shock",
+    y = "Percentage points",
+    title = "Cumulative response of GDP Price Index to a monetary policy shock",
   ) +
   geom_hline(aes(yintercept = 0)) +
-  theme_light(12, base_family = "Palatino Linotype") +
+  theme_light(12) +
   theme(
     panel.grid.major = element_blank(),
     panel.grid.minor = element_blank()
@@ -237,10 +243,10 @@ The figure illustrates the impulse response of 100 times the logarithm of the GD
     $$
 
 ```{r}
-gamma      <- df_r_yz$r_z^2
+gamma      <- df_e_ys$e_s^2
 gamma_mean <- mean(gamma)
 
-eta        <- df_r_yz$r_fy0 * df_r_yz$r_z^2
+eta        <- df_e_ys$e_fy0 * df_e_ys$e_s^2
 model_eta  <- lm(eta ~ 1)
 nw_se_eta  <- sqrt(diag(NeweyWest(model_eta, lag = nwlag)))
 seta       <- nw_se_eta["(Intercept)"]
@@ -264,7 +270,8 @@ bjd <- -bju
 
 ```{r}
 set.seed(12345)   # for replication
-n         <- length(df_r_yz$r_fy0)
+
+n         <- length(df_e_ys$e_fy0)
 block_id  <- floor((1:n + block - 1) / block)
 
 model_eta <- lm(eta ~ 1)
@@ -303,15 +310,15 @@ df_lp %>%
               fill = "darkgreen", linetype = 0, alpha = 0.2) +
   geom_ribbon(aes(ymin = down2sd, ymax = up2sd),
               fill = "darkgreen", linetype = 0, alpha = 0.1) +
-  scale_x_continuous(expand = c(0,0), breaks = seq(0, H, 5)) +
-  scale_y_continuous(expand = c(0,0), limits = c(-6, 2)) +
+  scale_x_continuous(expand = c(0,0), breaks = seq(0, H, 1)) +
+  # scale_y_continuous(expand = c(0,0), limits = c(-4, 4)) +
   labs(
-    x = "Quearter",
-    y = "Percent",
-    title = "Cumulative response of the CPI in percent to a Romer monetary shock",
+    x = "Quarters after the shock",
+    y = "Percentage points",
+    title = "Cumulative response of GDP Price Index to a monetary policy shock",
   ) +
   geom_hline(aes(yintercept = 0)) +
-  theme_light(12, base_family = "Palatino Linotype") +
+  theme_light(12) +
   theme(
     panel.grid.major = element_blank(),
     panel.grid.minor = element_blank()
@@ -325,12 +332,13 @@ In this section, we employ a technique proposed by Jordà, where we estimate the
 We start by pivoting the data to long format
 
 ```{r}
-df_r_yz_long <- df_r_yz %>%
-  pivot_longer(-c(date, r_z), names_to = "horizon", values_to = "r_fy") %>%
+df_e_ys_long <- 
+  df_e_ys %>%
+  pivot_longer(-c(date, e_s), names_to = "horizon", values_to = "e_fy") %>%
   mutate(
-    horizon = as.factor(gsub("^r_fy", "", horizon))
+    horizon = as.factor(gsub("^e_fy", "", horizon))
   ) %>% 
-  select(date, horizon, r_fy, r_z)
+  select(date, horizon, e_fy, e_s)
 ```
 
 Next, we estimate the data stacked as a panel using the `plm` package:
@@ -338,7 +346,7 @@ Next, we estimate the data stacked as a panel using the `plm` package:
 ```{r}
 library(plm)  # to estimate panel data models
 
-plm_model <- plm(r_fy ~ factor(horizon):r_z, data = df_r_yz_long, index = c("horizon", "date"), model = "within")
+plm_model <- plm(e_fy ~ factor(horizon):e_s, data = df_e_ys_long, index = c("horizon", "date"), model = "within")
 ```
 
 Finally, we conduct the joint hypothesis test, namely: $$
@@ -346,7 +354,13 @@ H_0: \beta_h=0, \text{for } h=0,\ldots,H
 $$
 
 ```{r}
-hypothesis <- sapply(0:H, function(i) paste0("factor(horizon)", i, ":r_z = 0"))
+hypothesis <- sapply(0:H, function(i) paste0("factor(horizon)", i, ":e_s = 0"))
 
 linearHypothesis(plm_model, hypothesis, vcov. = function(x) vcovSCC(x, maxlag=nwlag))
 ```
+
+## References
+
+Inoue, A., Jordà, Ò., & Kuersteiner, G. M. (2023). Significance Bands for Local Projections. *arXiv preprint arXiv:2306.03073*.
+
+Romer, C. D., & Romer, D. H. (2023). Presidential Address: Does Monetary Policy Matter? The Narrative Approach after 35 Years. *American Economic Review*, 113(6), 1395-1423.
