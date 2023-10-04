@@ -1671,8 +1671,8 @@ Using R</h1>
 Bank of Israel<br><h4 class="date">2023-10-04</h4>
 <div class="abstract">
 <p class="abstract">Abstract</p>
-This notebook employs the “Significance Bands for Local Projections”
-methodology, as detailed by <a href="https://arxiv.org/abs/2306.03073">Inoue, Jordà, and Kuersteiner
+This notebook demonstrates how to apply the “Significance Bands for
+Local Projections” methodology, as detailed by <a href="https://arxiv.org/abs/2306.03073">Inoue, Jordà, and Kuersteiner
 (2023)</a>, henceforth referred to as IJK, to examine the impact of
 monetary policy shocks (Romer and Romer, 2023) on inflation. The
 importance of utilizing significance bands, as opposed to traditional
@@ -1687,6 +1687,8 @@ their own analyses.
 </div>
 
 
+<p><em>Keywords</em>: Local projections, significance bands, monetary
+policy shocks, R</p>
 <div id="introduction" class="section level2">
 <h2>Introduction</h2>
 <p><a href="https://arxiv.org/abs/2306.03073">Inoue, Jordà, and
@@ -1777,6 +1779,16 @@ for <span class="math inline">\(h=1,…,H\)</span>:</p>
 </div>
 <div id="orthogonalization" class="section level2">
 <h2>Orthogonalization</h2>
+<p>n this section, we orthogonalize the response and treatment (shock)
+variables with respect to the control variables, specifically the lags
+of both and a constant. This step offers a clear advantage by
+simplifying the regression process, making it easier to understand and
+run. The primary motivation behind this approach is the Frisch-Waug-
+Lovell theorem, which suggests that the coefficient of interest remains
+numerically consistent, whether we use the full model or the
+orthogonalized model for estimation. However, it’s essential to correct
+for the degrees of freedom when calculating the standard errors to
+ensure our results are accurate and robust.</p>
 <p>Define the portion of the regression formula that includes both the
 constant and the control variables (4 lags of <code>s</code> and
 <code>y</code>):</p>
