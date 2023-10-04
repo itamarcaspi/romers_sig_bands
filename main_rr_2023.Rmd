@@ -1,7 +1,7 @@
 ---
-title: "Significance Bands for Local Projetsions Using R"
+title: "Significance Bands for Local Projections Using R"
 author: 
-  - name: "Itamar Caspi^[DISCLAIMER: The views expressed in this notebook are my own and do not represent the views of the Bank of Israel or any of its staff members.]"
+  - name: "Itamar Caspi^[The views expressed in this notebook are my own and do not represent the views of the Bank of Israel or any of its staff members. I would like to thank Oscar Jordà for his most helpful feedback and for sharing his code. Any remaining errors are mine.]"
     affiliation: "Bank of Israel"
 date: "`r Sys.Date()`"
 output:
@@ -13,7 +13,7 @@ output:
     toc: yes
     toc_depth: 4
     toc_float: yes
-abstract: This notebook demonstrates how to apply the "Significance Bands for Local Projections" methodology, as detailed by [Inoue, Jordà, and Kuersteiner (2023)](https://arxiv.org/abs/2306.03073), henceforth referred to as IJK, to examine the impact of monetary policy shocks (Romer and Romer, 2023) on inflation. The importance of utilizing significance bands, as opposed to traditional confidence bands, is underscored by IJK, especially when evaluating the dynamic influence of a treatment on an outcome variable through local projections. I show how to implement these methods using the R programming language and provide a comprehensive, step-by-step guide aimed at assisting researchers who wish to apply these techniques to their own analyses.
+abstract: This notebook demonstrates how to apply the "Significance Bands for Local Projections" methodology, as detailed by [Inoue, Jordà, and Kuersteiner (2023)](https://arxiv.org/abs/2306.03073), henceforth referred to as IJK, to examine the impact of monetary policy shocks (Romer and Romer, 2023) on inflation. The importance of utilizing significance bands, as opposed to traditional confidence bands, is underscored by IJK, especially when evaluating the dynamic influence of a treatment on an outcome variable through local projections. I show how to implement these methods using the R programming language and provide a comprehensive, step-by-step guide aimed at assisting researchers who wish to apply these techniques to their own analyses.^[Here's a link to the GitHub repository that contains both the code and dataset utilized in this notebook.]
 ---
 
 *Keywords*: Local projections, significance bands, monetary policy shocks, R
@@ -114,6 +114,8 @@ df_fwd <- df %>%
   )
 ```
 
+
+
 ## Orthogonalization
 
 n this section, we orthogonalize the response and treatment (shock) variables with respect to the control variables, specifically the lags of both and a constant. This step offers a clear advantage by simplifying the regression process, making it easier to understand and run. The primary motivation behind this approach is the Frisch-Waug- Lovell theorem, which suggests that the coefficient of interest remains numerically consistent, whether we use the full model or the orthogonalized model for estimation. However, it's essential to correct for the degrees of freedom when calculating the standard errors to ensure our results are accurate and robust.
@@ -176,6 +178,8 @@ $$
 e^y_{t+h}=e^s_t \beta_h+u_{t+h} \quad \text { for } h=0,1, \ldots, H-1 ; \quad t=1, \ldots, T
 $$
 
+
+and store the $\beta_h$ coefficients and their corresponding standard errors for each horizon.
 ```{r}
 mat_lp <- matrix(data = NA, ncol = 7, nrow = H+1)  # matrix to store estimation results
 
@@ -233,7 +237,7 @@ df_lp %>%
   )
 ```
 
-The figure illustrates the impulse response of 100 times the logarithm of the GDP deflator following a Romer and Romer (2023) monetary olicy shock. The model includes four lagged variables for the GDP deflator, and the monetary policy shock. Dark and light green shaded areas indicate bands corresponding to one and two standard errors, respectively. For further details, refer to [Inoue, Jordà, and Kuersteiner (2023.)](https://arxiv.org/abs/2306.03073)
+The figure illustrates the impulse response of 100 times the logarithm of the GDP Price Index following a Romer and Romer (2023) monetary policy shock. The model includes four lagged variables for the GDP Price Index, and for the monetary policy shock. Dark and light green shaded areas indicate bands corresponding to one and two standard errors, respectively. For further details, refer to [Inoue, Jordà, and Kuersteiner (2023.)](https://arxiv.org/abs/2306.03073)
 
 ## Significance bands
 
@@ -301,7 +305,7 @@ df_sb <- tibble(
 )
 ```
 
-The following figure adds classical NW significance bands, shown in dashed blue and bootstrap significance bands, shown in dashed red.
+The following figure mirrors the previous one; however, we now include classical Newey-West significance bands (shown in dashed blue) and bootstrapped significance bands (shown in dashed red).
 
 ```{r}
 df_lp %>% 
