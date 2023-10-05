@@ -123,7 +123,7 @@ df_fwd <- df %>%
 
 ## Orthogonalization
 
-n this section, we orthogonalize the response and treatment (shock) variables with respect to the control variables, specifically the lags of both and a constant. This step offers a clear advantage by simplifying the regression process, making it easier to understand and run. The primary motivation behind this approach is the Frisch-Waug- Lovell theorem, which suggests that the coefficient of interest remains numerically consistent, whether we use the full model or the orthogonalized model for estimation. However, it's essential to correct for the degrees of freedom when calculating the standard errors to ensure our results are accurate and robust.
+n this section, we orthogonalize the response and treatment (shock) variables with respect to the control variables, specifically the lags of both and a constant. This step offers a clear advantage by simplifying the regression process, making it easier to understand and run. The primary motivation behind this approach is the Frisch-Waugh-Lowell theorem, which suggests that the coefficient of interest remains numerically consistent, whether we use the full model or the orthogonalized model for estimation. However, it's essential to correct for the degrees of freedom when calculating the standard errors to ensure our results are accurate and robust.
 
 Define the portion of the regression formula that includes both the constant and the control variables (4 lags of `s` and `y`):
 
