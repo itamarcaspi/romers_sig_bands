@@ -5,4 +5,4 @@ This note aims to replicate the main finding presented in the paper "Significanc
 
 See [RMarkdown notebook](https://raw.githack.com/itamarcaspi/romers_sig_bands/master/main_rr_2023.html)
 
-![Alt text describing the image](plots/figure_1.png)
+![Alt text describing the image](plots/figure2.png)
