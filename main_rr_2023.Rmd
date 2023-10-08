@@ -353,7 +353,7 @@ linearHypothesis(plm_model, hypothesis, vcov. = function(x) plm::vcovSCC(x, maxl
 
 ## Comparison to Romer and Romer (2023)
 
-In Romer and Romer (2023), the researchers did not explore the effects on the price level as we did. Instead, they focused on directly assessing the implications for inflation. Specifically, they quantified their response as 400 times the log difference in the quarterly GDP Price Index. For context, we replicated their results.^[For those curious about the details of our replication process, the code is accessible in the notebook's GitHub repository.]
+In Romer and Romer (2023), the researchers did not explore the effects on the price level as we did. Instead, they focused on directly assessing the implications for inflation. Specifically, they quantified their response as 400 times the log difference in the quarterly GDP Price Index. For context, we replicated their results.^[For those curious about the details of our replication process, the code is accessible in the notebook's [GitHub repository](https://github.com/itamarcaspi/romers_sig_bands).]
 
 The left-hand side of the figure presents the LP and bands related to the price level. In contrast, the right-hand side highlights the LP and bands relevant to inflation. Significantly, we cannot reject the null hypothesis that there is no effect, based on the significance bands approach.
 
